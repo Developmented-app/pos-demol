@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Coffee, 
   CupSoda, 
@@ -22,7 +22,8 @@ import {
   Smartphone,
   Layers,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Keyboard
 } from 'lucide-react';
 import { Product, Category, CartItem, Order, PaymentMethod, SystemSettings, Customer } from '../types';
 import { getProductImageUrl } from '../utils/imageHelper';
@@ -60,6 +61,8 @@ export default function POSView({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [barcodeInput, setBarcodeInput] = useState<string>('');
+  const [globalScanEnabled, setGlobalScanEnabled] = useState<boolean>(true);
+  const scanBufferRef = useRef<{ char: string; time: number }[]>([]);
   const [scannerStatus, setScannerStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState<number>(0);
@@ -124,6 +127,96 @@ export default function POSView({
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4500);
   };
+
+  // Sync ref helper to avoid stale-closures of addToCart in key listener
+  const addToCartRef = useRef<(product: Product) => void>(() => {});
+  useEffect(() => {
+    addToCartRef.current = addToCart;
+  });
+
+  // Global Hardware Scanner Listener Hook
+  useEffect(() => {
+    if (!globalScanEnabled) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Identify active inputs to avoid hijacking user type fields
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+
+      // If user is editing some fields (except the dedicated scanner input box), let's skip global captures
+      if (isInput && target.id !== 'pos-barcode-scanner') {
+        return;
+      }
+
+      const key = e.key;
+
+      if (key === 'Enter') {
+        const buffer = scanBufferRef.current;
+        if (buffer.length > 0) {
+          const now = Date.now();
+          // Filter characters registered in the last 2 seconds
+          const validKeys = buffer.filter(item => now - item.time < 2000);
+
+          if (validKeys.length >= 2) {
+            const firstTime = validKeys[0].time;
+            const lastTime = validKeys[validKeys.length - 1].time;
+            const overallDuration = lastTime - firstTime;
+            const averageKeyDelay = overallDuration / validKeys.length;
+            const isDedicatedInput = target && target.id === 'pos-barcode-scanner';
+
+            // Hardware barcode scanners trigger sequential inputs extremely rapidly (<45ms/char)
+            // Or if they explicitly typed and hit enter in the dedicated scanner box, we allow slow inputs.
+            if (isDedicatedInput || averageKeyDelay < 45 || overallDuration < 400) {
+              const codeScanned = validKeys.map(item => item.char).join('').trim();
+              
+              if (codeScanned.length >= 2) {
+                e.preventDefault();
+
+                const productFound = products.find(
+                  p => p.sku.toLowerCase() === codeScanned.toLowerCase()
+                );
+
+                if (productFound) {
+                  if (productFound.stock <= 0) {
+                    addToast(`Scanned product "${productFound.name}" is completely out of stock.`, 'warning');
+                    setScannerStatus('error');
+                    setTimeout(() => setScannerStatus('idle'), 1000);
+                  } else {
+                    addToCartRef.current(productFound);
+                    addToast(`Hardware Scanned: "${productFound.name}" (SKU: ${productFound.sku})`, 'info');
+                    setScannerStatus('success');
+                    setTimeout(() => setScannerStatus('idle'), 800);
+                  }
+                } else {
+                  addToast(`No Product SKU match found for scan code: "${codeScanned}"`, 'warning');
+                  setScannerStatus('error');
+                  setTimeout(() => setScannerStatus('idle'), 1000);
+                }
+
+                // Flush/Clean the text box in either event
+                setBarcodeInput('');
+              }
+            }
+          }
+        }
+        // Flush buffer
+        scanBufferRef.current = [];
+      } else if (key.length === 1) {
+        // Collect single print characters with timestamp
+        scanBufferRef.current.push({ char: key, time: Date.now() });
+
+        // Cap buffer depth
+        if (scanBufferRef.current.length > 50) {
+          scanBufferRef.current.shift();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [products, globalScanEnabled]);
 
   // Filter products based on search & category
   const filteredProducts = useMemo(() => {
@@ -407,6 +500,35 @@ export default function POSView({
           </div>
           {/* Controls: Search and Barcode Scanner */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Global Hardware Scanner Active Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setGlobalScanEnabled(!globalScanEnabled);
+                addToast(
+                  !globalScanEnabled 
+                    ? "Global hardware scanner listener is now active. Scan barcodes from anywhere!" 
+                    : "Global hardware scanner listener is now disabled. Manual input only.",
+                  "info"
+                );
+              }}
+              className={`px-3 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold font-sans transition-all cursor-pointer shadow-4xs shrink-0 select-none ${
+                globalScanEnabled 
+                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 border-amber-500/30' 
+                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 border-zinc-200'
+              }`}
+              title={globalScanEnabled ? "Click to disable background global scan listener (active)" : "Click to enable background global scan listener (inactive)"}
+            >
+              <Keyboard className="w-3.5 h-3.5 shrink-0" />
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  {globalScanEnabled && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${globalScanEnabled ? 'bg-emerald-500' : 'bg-zinc-400'}`}></span>
+                </span>
+                <span className="leading-none">Auto-Scan</span>
+              </div>
+            </button>
+
             {/* Barcode scanner input */}
             <form onSubmit={handleBarcodeScan} className="relative w-auto sm:w-64" id="barcode-scanner-form">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">

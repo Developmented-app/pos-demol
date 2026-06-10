@@ -5,6 +5,7 @@ import POSView from './components/POSView';
 import InventoryView from './components/InventoryView';
 import TransactionsView from './components/TransactionsView';
 import SettingsView from './components/SettingsView';
+import { Menu, Eye } from 'lucide-react';
 
 import { Product, Category, Order, ActivityLog, SystemSettings, Customer } from './types';
 import { 
@@ -18,6 +19,50 @@ import {
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'pos' | 'inventory' | 'transactions' | 'settings'>('pos');
   const [activeCashier] = useState<string>('Alex (Shift Mgr)');
+
+  // Sidebar responsive / toggle states
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gourmet_pos_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isSidebarVisible, setIsSidebarVisible] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gourmet_pos_sidebar_visible') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed(prev => {
+      const newVal = !prev;
+      localStorage.setItem('gourmet_pos_sidebar_collapsed', String(newVal));
+      return newVal;
+    });
+  };
+
+  const toggleSidebarVisibility = () => {
+    setIsSidebarVisible(prev => {
+      const newVal = !prev;
+      localStorage.setItem('gourmet_pos_sidebar_visible', String(newVal));
+      return newVal;
+    });
+  };
+
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleSidebarVisibility();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   // Products state (loads from localStorage or presets)
   const [products, setProducts] = useState<Product[]>(() => {
@@ -355,14 +400,31 @@ export default function App() {
   return (
     <div id="application-container" className="flex h-screen w-screen bg-zinc-950 overflow-hidden font-sans">
       {/* Universal Side Navigation controls */}
-      <Sidebar 
-        currentTab={currentTab} 
-        onTabChange={setCurrentTab} 
-        activeCashier={activeCashier} 
-      />
+      {isSidebarVisible && (
+        <Sidebar 
+          currentTab={currentTab} 
+          onTabChange={setCurrentTab} 
+          activeCashier={activeCashier} 
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapse}
+          onHideSidebar={toggleSidebarVisibility}
+        />
+      )}
 
       {/* Main viewport panels switcher */}
       <main id="main-content-viewport" className="flex-1 flex flex-col min-w-0 overflow-hidden bg-zinc-50 relative">
+        {/* Floating Toggle Icon if Sidebar is Hidden */}
+        {!isSidebarVisible && (
+          <button
+            type="button"
+            onClick={toggleSidebarVisibility}
+            className="absolute top-4 left-4 z-50 p-2.5 rounded-xl bg-zinc-900 border border-zinc-805 text-zinc-100 hover:bg-zinc-800 hover:text-white shadow-xl cursor-pointer transition-all flex items-center gap-1.5 text-xs font-bold font-sans select-none"
+            title="Restore Sidebar Navigation (Alt+M)"
+          >
+            <Menu className="w-4 h-4 text-amber-500 animate-pulse" />
+            <span>Show Menu</span>
+          </button>
+        )}
         {currentTab === 'dashboard' && (
           <DashboardView 
             products={products} 
