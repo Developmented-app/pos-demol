@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+}
+
+/* System-wide light/dark variables mappings */
+:root {
+  --theme-bg: #f4f4f5;         /* soft off-white canvas representing light mode */
+  --theme-card: #ffffff;       /* clean absolute white cards nested on the soft canvas */
+  --theme-border: #e4e4e7;     /* light border dividers */
+  --theme-text-bold: #09090b;  /* intense clean charcoal dark text */
+  --theme-text-muted: #52525b; /* legible muted gray text */
+}
+
+/* Dark mode class overrides */
+.dark {
+  --theme-bg: #0b0f19;         /* dark ambient space cadet/deep slate canvas */
+  --theme-card: #111827;       /* premium slate card with subtle dark background */
+  --theme-border: #1f2937;     /* high contrast fine borders */
+  --theme-text-bold: #f9fafb;  /* bright fine off-white headings and labels */
+  --theme-text-muted: #9ca3af; /* muted cool gray body and helper summaries */
+}
+
+/* Precise high-level selectors targeting Tailwind classes, enabling seamless style transition across views */
+.dark .bg-zinc-50, 
+.dark .bg-zinc-100, 
+.dark .bg-zinc-105, 
+.dark .bg-zinc-150 {
+  background-color: var(--theme-bg) !important;
+}
+
+.dark #main-content-viewport {
+  background-color: var(--theme-bg) !important;
+}
+
+.dark .bg-white {
+  background-color: var(--theme-card) !important;
+}
+
+.dark .text-zinc-950,
+.dark .text-zinc-900,
+.dark .text-zinc-850,
+.dark .text-zinc-800,
+.dark .text-zinc-750 {
+  color: var(--theme-text-bold) !important;
+}
+
+.dark .text-zinc-700,
+.dark .text-zinc-655,
+.dark .text-zinc-650,
+.dark .text-zinc-450,
+.dark .text-zinc-500,
+.dark .text-zinc-400 {
+  color: var(--theme-text-muted) !important;
+}
+
+.dark .border-zinc-200,
+.dark .border-zinc-150,
+.dark .border-zinc-100 {
+  border-color: var(--theme-border) !important;
+}
+
+/* Quick hover transitions for tables, drawers and select options */
+.dark .hover\:bg-zinc-50:hover, 
+.dark .hover\:bg-zinc-100:hover, 
+.dark .hover\:bg-zinc-150:hover,
+.dark .hover\:bg-zinc-105:hover {
+  background-color: #1f2937 !important;
+}
+
+.dark input, 
+.dark textarea, 
+.dark select {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+.dark input::placeholder, 
+.dark textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Specific Recharts Tooltip custom styling inside dark mode */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--theme-card) !important;
+  border: 1px solid var(--theme-border) !important;
+  color: var(--theme-text-bold) !important;
+}
+
